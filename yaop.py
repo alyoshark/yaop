@@ -2,9 +2,14 @@ import sqlite3
 
 
 # Dirty hack to prevent uninitialized cursor
-if not globals().get("__cursor", None):
-    __cursor = sqlite3.connect("database.db").cursor()
-    globals().update["__cursor"] = __cursor
+# if globals().get("__cursor", None) is None:
+#     __cursor = sqlite3.connect("database.db").cursor()
+#     print __cursor
+#     globals().update({"__cursor": __cursor})
+
+config = {"__conn": sqlite3.connect("database.db")}
+config["__cursor"] = config["__conn"].cursor()
+
 
 class Attribute(object):
     def __init__(self, tp, primary=False):
@@ -18,14 +23,29 @@ class Attribute(object):
 class ModelFac(type):
     def __init__(cls, name, bases, dct):
         table_name = cls.__name__
-        attributes = [(k,v) for k,v in dct.items() if type(v) is Attribute]
-        __register(dct['cursor'], table_name, attributes)
-        super(ModelFac, cls).__init__(name, bases, dct)
+        attributes = [k + v.sqldef for k,v in dct.items() if type(v) is Attribute]
+        if dct.get("cursor", None) is None:
+            dct["cursor"] = config["__cursor"]
+            dct["conn"] = config["__conn"]
+        if attributes:
+            ModelFac.__register(dct["cursor"], dct["conn"], table_name, attributes)
+            super(ModelFac, cls).__init__(name, bases, dct)
+
+    @staticmethod
+    def __register(cursor, conn, table, attributes):
+        """
+            Create a table with given name and attribute list
+        """
+        cmd = "create table if not exists " + table
+        cmd += "(" + ','.join(attributes) + ")"
+        cursor.execute(cmd)
+        conn.commit()
 
 
 class Model(object):
     __metaclass__ = ModelFac
-    cursor = __cursor
+    cursor = config["__cursor"]
+    conn = config["__conn"]
 
     def __init__(self, **args):
         self.data = {}
@@ -35,26 +55,23 @@ class Model(object):
         self.data.update(args)
 
     def save(self):
+        def code_to_command(x):
+            if type(x) == str:
+                return "\"%s\"" % x
+            else:
+                return str(x)
         name = type(self).__name__
         cmd = "insert into %s(%s) values(%s)" % \
-            (name, ",".join(self.data.item()),
-                   ",".join(str(x) for x in self.data.values()))
-        print cmd
+            (name, ",".join(self.data.keys()),
+                   ",".join(code_to_command(x) for x in self.data.values()))
+        print "Executed: " + cmd
         self.cursor.execute(cmd)
-
-
-def __register(cursor, table, attributes):
-    """
-        Create a table with given name and attribute list
-    """
-    cmd = "create table if not exists " + table
-    cmd += "(" + typedefs + ")"
-    cursor.execute(cmd)
+        self.conn.commit()
 
 
 class Database(object):
     def __init__(self):
-        self.cursor = __cursor
+        self.cursor = config["__cursor"]
  
     def __get_columns(self, name):
         self.sql_rows = 'select * from %s' % name
@@ -88,11 +105,11 @@ class Query(object):
     def group_by(self, criteria):
         return Query(self.cursor, self.sql_rows + " GROUP BY %s" % criteria, self.columns, self.name)
  
-    rows = property(get_rows)
     def get_rows(self):
         print self.sql_rows
         self.cursor.execute(self.sql_rows)
         return [Row(zip(self.columns, fields), self.name) for fields in self.cursor.fetchall()]
+    rows = property(get_rows)
  
  
 class Row(object):
