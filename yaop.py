@@ -23,7 +23,16 @@ class Attribute(object):
 class ModelFac(type):
     def __init__(cls, name, bases, dct):
         table_name = cls.__name__
-        attributes = [k + v.sqldef for k,v in dct.items() if type(v) is Attribute]
+        base = bases[0]
+        base_attributes = dir(base)
+        attribute_dict = dict([(k, getattr(base, k)) for k in base_attributes
+            if type(getattr(base, k)) is Attribute])
+        # print "Base attributes:"
+        # print attribute_dict
+        attribute_dict.update(dct)
+        # print "Current attributes:"
+        # print attribute_dict
+        attributes = [k + v.sqldef for k,v in attribute_dict.items() if type(v) is Attribute]
         if dct.get("cursor", None) is None:
             dct["cursor"] = config["__cursor"]
             dct["conn"] = config["__conn"]
