@@ -102,6 +102,7 @@ class Model(object):
     conn = config["__conn"]
 
     def __init__(self, **args):
+        # __data should NOT contain Id field
         self.__data = {}
         self.__data.update(args)
         for k, v in args.items():
@@ -117,9 +118,13 @@ class Model(object):
 
     def save(self):
         name = type(self).__name__
-        cmd = "insert into %s(%s) values(%s)" % \
-            (name, ",".join(self.__data.keys()),
-                   ",".join(code_to_command(x) for x in self.__data.values()))
+        if not self.Id:
+            cmd = "insert into %s(%s) values(%s)" % \
+                  (name, ",".join(self.__data.keys()),
+                         ",".join(code_to_command(x) for x in self.__data.values()))
+        else:
+            set_str = ",".join([k+"="+code_to_command(v) for k,v in __data.items()])
+            cmd = "update %s set %s where id=%d" % (name, set_str, self.Id)
         print "Executed: " + cmd
         self.cursor.execute(cmd)
         self.conn.commit()
@@ -128,6 +133,8 @@ class Model(object):
 
     def remove(self):
         cmd = "delete from %s where Id=%s" % (type(self).__name__, str(self.Id))
+        self.cursor.execute(cmd)
+        self.conn.commit()
 
     @classmethod
     def search(cls, **args):

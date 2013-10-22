@@ -74,4 +74,11 @@ equality search is supported.
     >> 1
 
     bobby.Id
+
+
+UNtested use cases:
+
+    xm.update(name="Ming Ming")
+    xmid = xm.save() # This should update the name to Ming Ming
+    bobby.remove() # This should delete the entry of bobby from database
     >> 1
