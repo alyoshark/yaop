@@ -105,6 +105,7 @@ class Model(object):
         # __data should NOT contain Id field
         self.__data = {}
         self.__data.update(args)
+        self.Id = None
         for k, v in args.items():
             attribute = getattr(self, k, None)
             if attribute:
@@ -115,6 +116,9 @@ class Model(object):
     def update(self, **args):
         assert reduce(lambda x, y: x and y, [x in dir(self) for x in args])
         self.__data.update(args)
+        for k, v in args.items():
+            attribute = getattr(self, k, None)
+            attribute.update(v)
 
     def save(self):
         name = type(self).__name__
@@ -123,16 +127,17 @@ class Model(object):
                   (name, ",".join(self.__data.keys()),
                          ",".join(code_to_command(x) for x in self.__data.values()))
         else:
-            set_str = ",".join([k+"="+code_to_command(v) for k,v in __data.items()])
+            set_str = ",".join([k+"="+code_to_command(v) for k,v in self.__data.items()])
             cmd = "update %s set %s where id=%d" % (name, set_str, self.Id)
         print "Executed: " + cmd
         self.cursor.execute(cmd)
         self.conn.commit()
-        self.Id = self.cursor.lastrowid
+        if not self.Id:
+            self.Id = self.cursor.lastrowid
         return self.Id
 
     def remove(self):
-        cmd = "delete from %s where Id=%s" % (type(self).__name__, str(self.Id))
+        cmd = "delete from %s where Id=%d" % (type(self).__name__, self.Id)
         self.cursor.execute(cmd)
         self.conn.commit()
 
